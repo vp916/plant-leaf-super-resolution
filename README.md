@@ -1,8 +1,10 @@
-# Plant Leaf Super-Resolution
+# Plant Leaf Image Super-Resolution using SRGAN
 
 A deep learning project for **4× single-image super-resolution** of degraded plant-leaf images.
 
-The task is to reconstruct a high-resolution `128 × 128` RGB image from a severely degraded `32 × 32` RGB input. The project investigates reconstruction losses, residual networks, conditional adversarial training, and pixel-shuffle based upsampling.
+The task is to reconstruct a high-resolution `128 × 128` RGB image from a severely degraded `32 × 32` RGB input. The project investigates reconstruction losses, residual networks, conditional adversarial training, and pixel-shuffle based upsampling. It also includes experiments with **VGG-19 perceptual loss** and alternative **Charbonnier loss** formulations to balance pixel accuracy against realistic texture.
+
+**Best leaderboard result:** Private MAE **16.7747859** · Public MAE **16.1249961** (lower is better).
 
 ## 1. Problem
 
@@ -43,7 +45,7 @@ Each low-resolution training image has a corresponding high-resolution image wit
 
 The test set contains only the low-resolution images. The model must generate the corresponding high-resolution reconstruction.
 
-A VGG-19 weight file was also provided by the task for possible perceptual-loss experiments. The implementation documented in this repository does **not** use VGG-19 perceptual loss; the final training objective is based on image reconstruction and gradient losses, with adversarial loss introduced later in training.
+A pretrained VGG-19 weight file was also provided by the task. I used it for **perceptual-loss experiments** (Section 7.4), where VGG-19 serves as a fixed feature extractor. The generator and discriminator themselves are trained from scratch.
 
 ---
 
@@ -84,7 +86,7 @@ The discriminator is **conditional**: it receives both the generated/high-resolu
 
 ---
 
-# 4. Generator
+## 4. Generator
 
 The generator follows a residual super-resolution architecture.
 
@@ -101,7 +103,7 @@ This produces a feature representation while preserving the `32 × 32` spatial r
 
 ---
 
-## Residual trunk
+### Residual trunk
 
 The network contains **16 residual blocks**.
 
@@ -121,11 +123,11 @@ Batch Normalization
 Residual Addition
 ```
 
-Mathematically, a residual block learns a transformation \(F(x)\) and returns:
+Mathematically, a residual block learns a transformation $F(x)$ and returns:
 
-\[
+$$
 y = x + F(x)
-\]
+$$
 
 Instead of forcing the network to learn an entirely new representation, the block only needs to learn the useful residual correction.
 
@@ -133,25 +135,25 @@ This is particularly useful for super-resolution because much of the low-frequen
 
 ---
 
-## Global residual connection
+### Global residual connection
 
 After the residual stack, an additional convolution and batch-normalization layer are combined with the features produced at the generator entrance:
 
-\[
+$$
 r = \text{Mid}(R(f)) + f
-\]
+$$
 
 where:
 
-- \(f\) is the initial feature representation;
-- \(R\) represents the residual trunk;
-- \(r\) is the fused feature representation.
+- $f$ is the initial feature representation;
+- $R$ represents the residual trunk;
+- $r$ is the fused feature representation.
 
 This gives the network a direct path for preserving information from the original low-resolution representation.
 
 ---
 
-# 5. Upsampling
+## 5. Upsampling
 
 The generator performs the 4× resolution increase using **PixelShuffle**.
 
@@ -178,23 +180,23 @@ nn.PixelShuffle(2)
 
 PixelShuffle rearranges channel information into spatial dimensions.
 
-For an upscale factor \(r\), PixelShuffle transforms:
+For an upscale factor $r$, PixelShuffle transforms:
 
-\[
+$$
 (Cr^2, H, W)
-\]
+$$
 
 into:
 
-\[
+$$
 (C, Hr, Wr)
-\]
+$$
 
 This provides a learned alternative to simply interpolating the image.
 
 ---
 
-# 6. Discriminator
+## 6. Discriminator
 
 The discriminator is conditional.
 
@@ -240,13 +242,13 @@ followed by global average pooling and a single scalar output.
 
 ---
 
-# 7. Reconstruction Loss
+## 7. Reconstruction Loss
 
 A major part of the training approach was to make the generator learn faithful reconstruction before relying heavily on adversarial training.
 
 The reconstruction objective is:
 
-\[
+$$
 L_{\text{pix}}
 =
 L_{\text{Charbonnier}}
@@ -254,52 +256,52 @@ L_{\text{Charbonnier}}
 0.5L_1
 +
 0.1L_{\text{gradient}}
-\]
+$$
 
 ---
 
-## 7.1 Charbonnier Loss
+### 7.1 Charbonnier Loss
 
 The implementation uses:
 
-\[
+$$
 L_{\text{Charbonnier}}
 =
 \frac{1}{N}
 \sum_i
 \sqrt{(x_i-y_i)^2+\epsilon}
-\]
+$$
 
 with:
 
-\[
+$$
 \epsilon = 10^{-6}
-\]
+$$
 
 The Charbonnier loss is a smooth approximation to the absolute error.
 
-For small errors, it behaves smoothly around zero, while for larger errors it remains similar to an \(L_1\) objective.
+For small errors, it behaves smoothly around zero, while for larger errors it remains similar to an $L_1$ objective.
 
 ---
 
-## 7.2 L1 Reconstruction Loss
+### 7.2 L1 Reconstruction Loss
 
 The second component is standard mean absolute error:
 
-\[
+$$
 L_1
 =
 \frac{1}{N}
 \sum_i |x_i-y_i|
-\]
+$$
 
-where \(x_i\) is the generated pixel and \(y_i\) is the ground-truth pixel.
+where $x_i$ is the generated pixel and $y_i$ is the ground-truth pixel.
 
 The motivation is straightforward: super-resolution should remain numerically faithful to the ground-truth image.
 
 ---
 
-## 7.3 Gradient Loss
+### 7.3 Gradient Loss
 
 The model also compares image gradients using Sobel filters.
 
@@ -315,7 +317,7 @@ For each RGB channel, the generated and target gradients are compared using L1 l
 
 Conceptually:
 
-\[
+$$
 L_{\text{gradient}}
 =
 \left\|
@@ -325,7 +327,7 @@ L_{\text{gradient}}
 \left\|
 \nabla_y I_{SR}-\nabla_y I_{HR}
 \right\|_1
-\]
+$$
 
 The purpose is to encourage preservation of edges and high-frequency structure.
 
@@ -333,11 +335,47 @@ This is important for leaf images because veins and fine biological structures a
 
 ---
 
-# 8. Adversarial Training
+### 7.4 Perceptual Loss (VGG-19) — Experiment
+
+Pixel-wise losses such as L1 and Charbonnier average over every plausible high-resolution image, which tends to produce smooth, blurry textures.
+
+A perceptual loss instead compares images in the **feature space of a pretrained VGG-19 network**, where edges, textures and patterns are represented explicitly:
+
+$$
+L_{\text{perceptual}}
+=
+\left\|
+\phi(I_{SR})-\phi(I_{HR})
+\right\|
+$$
+
+where $\phi$ represents features extracted by VGG-19.
+
+Adding this term to the generator objective pushes the output toward realistic texture, such as leaf veins and surface detail, rather than toward a pixel-wise average.
+
+---
+
+### 7.5 Charbonnier Variants — Experiment
+
+I also experimented with alternative formulations of the Charbonnier term to study how the smooth L1-style reconstruction loss interacts with the L1, gradient, perceptual and adversarial components.
+
+---
+
+### 7.6 What the Loss Experiments Showed
+
+The leaderboard metric is MAE, which directly rewards pixel accuracy.
+
+Perceptual and adversarial terms improve how realistic the texture looks, but they can move pixel values away from the ground truth. Their weights therefore had to stay small relative to the reconstruction objective.
+
+All variants landed in a narrow range (private MAE **16.77–16.80**). The best experimental submission reached a private MAE of **16.7747859**. See Section 15 for all submissions.
+
+---
+
+## 8. Adversarial Training
 
 The discriminator uses binary cross entropy with logits:
 
-\[
+$$
 L_D
 =
 \frac{1}{2}
@@ -346,15 +384,15 @@ L_D
 +
 \text{BCE}(D(SR),0)
 \right]
-\]
+$$
 
 The generator receives an adversarial objective:
 
-\[
+$$
 L_{adv}
 =
 \text{BCE}(D(SR),1)
-\]
+$$
 
 The generator attempts to produce images that the discriminator considers realistic.
 
@@ -362,7 +400,7 @@ However, directly optimizing a GAN from the beginning can make reconstruction un
 
 ---
 
-# 9. Two-Stage GAN Training
+## 9. Two-Stage GAN Training
 
 The final training loop uses **90 epochs**.
 
@@ -398,18 +436,18 @@ The adversarial contribution is intentionally small.
 
 Thus:
 
-\[
+$$
 L_G =
 L_{\text{pix}}
 +
 0.001L_{\text{adv}}
-\]
+$$
 
 The reconstruction objective remains dominant while the discriminator provides an additional realism signal.
 
 ---
 
-# 10. Stabilization Choices
+## 10. Stabilization Choices
 
 Several choices were made to reduce GAN instability.
 
@@ -459,7 +497,7 @@ before loss computation and output conversion.
 
 ---
 
-# 11. Data Augmentation
+## 11. Data Augmentation
 
 The paired LR and HR images receive the same spatial transformations.
 
@@ -485,7 +523,7 @@ This preserves the pixel correspondence between the input and target.
 
 ---
 
-# 12. Training Configuration
+## 12. Training Configuration
 
 | Parameter | Value |
 |---|---:|
@@ -504,18 +542,18 @@ This preserves the pixel correspondence between the input and target.
 
 ---
 
-# 13. Evaluation
+## 13. Evaluation
 
 The leaderboard metric is **Mean Absolute Error (MAE)**.
 
-For predicted pixels \(\hat{y}\) and target pixels \(y\):
+For predicted pixels $\hat{y}$ and target pixels $y$:
 
-\[
+$$
 MAE =
 \frac{1}{N}
 \sum_{i=1}^{N}
 |y_i-\hat{y}_i|
-\]
+$$
 
 Lower values indicate better reconstruction.
 
@@ -523,7 +561,7 @@ The leaderboard evaluates the generated `128 × 128 × 3` images against the hid
 
 ---
 
-## Important evaluation note
+### Important evaluation note
 
 The notebook's `eval_loader` is constructed from the same paired training dataset:
 
@@ -541,7 +579,7 @@ The actual generalization result is the leaderboard score obtained from the hidd
 
 ---
 
-# 14. Submission
+## 14. Submission
 
 The final generated image is converted back from normalized floating-point values to 8-bit RGB:
 
@@ -551,9 +589,9 @@ sr = (sr * 255).clip(0, 255).astype(np.uint8)
 
 The `128 × 128 × 3` image is then flattened into a single sequence of:
 
-\[
+$$
 128 \times 128 \times 3 = 49,152
-\]
+$$
 
 pixel values.
 
@@ -566,26 +604,25 @@ image_name.png,<49,152 space-separated pixel values>
 
 ---
 
-# 15. Final Leaderboard Result
+## 15. Final Leaderboard Result
 
-The final recorded submission achieved:
-
-```text
-Private MAE : 16.7806549
-Public MAE  : 16.1398927
-```
+| Submission | Private MAE | Public MAE |
+|---|---:|---:|
+| **Best experimental variant (loss experiments)** | **16.7747859** | **16.1249961** |
+| Notebook in this repository (Charbonnier + L1 + gradient + delayed GAN) | 16.7806549 | 16.1389827 |
+| Other experimental variant | 16.7954559 | 16.1406822 |
 
 Because the evaluation metric is MAE:
 
-\[
+$$
 \boxed{\text{Lower is better}}
-\]
+$$
 
 The difference between public and private performance also illustrates why local reconstruction error alone is not sufficient for judging generalization.
 
 ---
 
-# 16. What I Learned From the GAN Approach
+## 16. What I Learned From the GAN Approach
 
 This project was not simply an exercise in implementing a GAN architecture.
 
@@ -605,21 +642,21 @@ Produce perceptually realistic details
 
 A generator optimized only for pixel-wise error tends to produce conservative, smooth reconstructions.
 
-A generator given too much adversarial pressure can instead produce visually convincing details that are not actually present in the target.
+A generator given too much adversarial or perceptual pressure can instead produce visually convincing details that are not actually present in the target.
 
 For this reason, the final training strategy deliberately kept:
 
-\[
+$$
 L_{\text{pixel}}
 \gg
 L_{\text{adversarial}}
-\]
+$$
 
 through the very small adversarial coefficient:
 
-\[
+$$
 \lambda_{adv}=0.001
-\]
+$$
 
 and delayed adversarial training until after the reconstruction stage.
 
@@ -627,7 +664,7 @@ This experimentation was an important part of the project because it exposed the
 
 ---
 
-# 17. Technical Takeaways
+## 17. Technical Takeaways
 
 ### 1. Super-resolution is not simply resizing
 
@@ -635,12 +672,12 @@ Bicubic interpolation can increase the image dimensions, but it cannot recover i
 
 The neural network instead learns a mapping:
 
-\[
+$$
 f_\theta:
 I_{LR}\rightarrow I_{HR}
-\]
+$$
 
-from thousands of paired examples.
+from 1,642 paired training examples.
 
 ### 2. Residual learning helps deep reconstruction
 
@@ -654,23 +691,27 @@ Rather than interpolating feature maps directly, the network learns how feature 
 
 Pixel losses alone can encourage smooth outputs. Comparing image gradients explicitly encourages the network to preserve edges and fine structures.
 
-### 5. GAN training is a balancing problem
+### 5. Perceptual loss trades pixel accuracy for realism
+
+VGG-19 feature matching produces sharper, more natural textures, but under an MAE metric its weight has to be controlled carefully.
+
+### 6. GAN training is a balancing problem
 
 The discriminator is not automatically beneficial simply because it is present.
 
 The relative strength of:
 
-\[
+$$
 L_{\text{reconstruction}}
 \quad\text{and}\quad
 L_{\text{adversarial}}
-\]
+$$
 
 strongly affects the behaviour of the generator.
 
 ---
 
-# 18. Reproducibility
+## 18. Reproducibility
 
 The notebook contains the complete implementation used for the experiment:
 
@@ -694,18 +735,20 @@ Test inference
 CSV submission
 ```
 
+The notebook contains the Charbonnier + L1 + gradient + delayed-adversarial configuration. The perceptual-loss and Charbonnier-variant experiments were separate runs.
+
 The repository does not include the original dataset or generated submission data.
 
 ---
 
-# 19. Repository Structure
+## 19. Repository Structure
 
 The project intentionally contains only the main documentation and experiment notebook:
 
 ```text
 .
 ├── README.md
-└── plant_leaf_super_resolution.ipynb
+└── Plant_Resolution_Experiment.ipynb
 ```
 
 The notebook contains the implementation and experimental workflow.
@@ -714,23 +757,13 @@ The dataset remains external and is not committed to the repository.
 
 ---
 
-# 20. Future Work
+## 20. Future Work
 
 Several improvements would be natural extensions of this experiment:
 
-### Perceptual loss
+### Systematic perceptual-loss study
 
-The provided VGG-19 weights could be incorporated to compare high-level feature representations:
-
-\[
-L_{\text{perceptual}}
-=
-\left\|
-\phi(I_{SR})-\phi(I_{HR})
-\right\|_2^2
-\]
-
-where \(\phi\) represents features extracted by VGG-19.
+Compare different VGG-19 feature layers and perceptual-loss weights, and report the texture-versus-MAE trade-off for each.
 
 ### Stronger reconstruction architecture
 
@@ -765,6 +798,7 @@ Future experiments could separately measure the contribution of:
 L1
 Charbonnier
 Gradient loss
+Perceptual loss
 Adversarial loss
 Residual depth
 PixelShuffle
@@ -775,14 +809,14 @@ This would make it possible to quantify which components actually improve recons
 
 ---
 
-# 21. Final Result
+## 21. Final Result
 
-The final submitted solution achieved the following leaderboard results:
+The best submission achieved the following leaderboard results:
 
 | Metric | Score |
 |---|---:|
-| **Private leaderboard MAE** | **16.7806549** |
-| Public leaderboard MAE | 16.1398927 |
+| **Private leaderboard MAE** | **16.7747859** |
+| Public leaderboard MAE | 16.1249961 |
 
 The evaluation metric is **Mean Absolute Error (MAE)**, so:
 
@@ -794,7 +828,7 @@ The private leaderboard score is the primary final result because it represents 
 
 ---
 
-# 22. Summary
+## 22. Summary
 
 The project explored a complete neural super-resolution pipeline for reconstructing `128 × 128` plant-leaf images from `32 × 32` degraded observations.
 
@@ -814,18 +848,20 @@ L1 Loss
 Gradient Loss
         +
 Delayed Adversarial Training
+        +
+VGG-19 Perceptual Loss (experiments)
 ```
 
-The final submitted result was:
+The best submitted result was:
 
-\[
-\boxed{\text{Private MAE}=16.7806549}
-\]
+$$
+\boxed{\text{Private MAE}=16.7747859}
+$$
 
 with a public leaderboard MAE of:
 
-\[
-\boxed{\text{Public MAE}=16.1398927}
-\]
+$$
+\boxed{\text{Public MAE}=16.1249961}
+$$
 
 The most important engineering lesson from the project was that successful GAN-based super-resolution requires balancing **faithful reconstruction** against **perceptual realism**. The adversarial component is useful only when it complements the reconstruction objective rather than overwhelming it.
