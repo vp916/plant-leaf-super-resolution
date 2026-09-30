@@ -125,9 +125,9 @@ Residual Addition
 
 Mathematically, a residual block learns a transformation $F(x)$ and returns:
 
-$$
+```math
 y = x + F(x)
-$$
+```
 
 Instead of forcing the network to learn an entirely new representation, the block only needs to learn the useful residual correction.
 
@@ -139,9 +139,9 @@ This is particularly useful for super-resolution because much of the low-frequen
 
 After the residual stack, an additional convolution and batch-normalization layer are combined with the features produced at the generator entrance:
 
-$$
+```math
 r = \text{Mid}(R(f)) + f
-$$
+```
 
 where:
 
@@ -182,15 +182,15 @@ PixelShuffle rearranges channel information into spatial dimensions.
 
 For an upscale factor $r$, PixelShuffle transforms:
 
-$$
+```math
 (Cr^2, H, W)
-$$
+```
 
 into:
 
-$$
+```math
 (C, Hr, Wr)
-$$
+```
 
 This provides a learned alternative to simply interpolating the image.
 
@@ -248,7 +248,7 @@ A major part of the training approach was to make the generator learn faithful r
 
 The reconstruction objective is:
 
-$$
+```math
 L_{\text{pix}}
 =
 L_{\text{Charbonnier}}
@@ -256,7 +256,7 @@ L_{\text{Charbonnier}}
 0.5L_1
 +
 0.1L_{\text{gradient}}
-$$
+```
 
 ---
 
@@ -264,19 +264,19 @@ $$
 
 The implementation uses:
 
-$$
+```math
 L_{\text{Charbonnier}}
 =
 \frac{1}{N}
 \sum_i
 \sqrt{(x_i-y_i)^2+\epsilon}
-$$
+```
 
 with:
 
-$$
+```math
 \epsilon = 10^{-6}
-$$
+```
 
 The Charbonnier loss is a smooth approximation to the absolute error.
 
@@ -288,12 +288,12 @@ For small errors, it behaves smoothly around zero, while for larger errors it re
 
 The second component is standard mean absolute error:
 
-$$
+```math
 L_1
 =
 \frac{1}{N}
 \sum_i |x_i-y_i|
-$$
+```
 
 where $x_i$ is the generated pixel and $y_i$ is the ground-truth pixel.
 
@@ -317,7 +317,7 @@ For each RGB channel, the generated and target gradients are compared using L1 l
 
 Conceptually:
 
-$$
+```math
 L_{\text{gradient}}
 =
 \left\|
@@ -327,7 +327,7 @@ L_{\text{gradient}}
 \left\|
 \nabla_y I_{SR}-\nabla_y I_{HR}
 \right\|_1
-$$
+```
 
 The purpose is to encourage preservation of edges and high-frequency structure.
 
@@ -341,13 +341,13 @@ Pixel-wise losses such as L1 and Charbonnier average over every plausible high-r
 
 A perceptual loss instead compares images in the **feature space of a pretrained VGG-19 network**, where edges, textures and patterns are represented explicitly:
 
-$$
+```math
 L_{\text{perceptual}}
 =
 \left\|
 \phi(I_{SR})-\phi(I_{HR})
 \right\|
-$$
+```
 
 where $\phi$ represents features extracted by VGG-19.
 
@@ -375,7 +375,7 @@ All variants landed in a narrow range (private MAE **16.77–16.80**). The best 
 
 The discriminator uses binary cross entropy with logits:
 
-$$
+```math
 L_D
 =
 \frac{1}{2}
@@ -384,15 +384,15 @@ L_D
 +
 \text{BCE}(D(SR),0)
 \right]
-$$
+```
 
 The generator receives an adversarial objective:
 
-$$
+```math
 L_{adv}
 =
 \text{BCE}(D(SR),1)
-$$
+```
 
 The generator attempts to produce images that the discriminator considers realistic.
 
@@ -436,12 +436,12 @@ The adversarial contribution is intentionally small.
 
 Thus:
 
-$$
+```math
 L_G =
 L_{\text{pix}}
 +
 0.001L_{\text{adv}}
-$$
+```
 
 The reconstruction objective remains dominant while the discriminator provides an additional realism signal.
 
@@ -548,12 +548,12 @@ The leaderboard metric is **Mean Absolute Error (MAE)**.
 
 For predicted pixels $\hat{y}$ and target pixels $y$:
 
-$$
+```math
 MAE =
 \frac{1}{N}
 \sum_{i=1}^{N}
 |y_i-\hat{y}_i|
-$$
+```
 
 Lower values indicate better reconstruction.
 
@@ -589,9 +589,9 @@ sr = (sr * 255).clip(0, 255).astype(np.uint8)
 
 The `128 × 128 × 3` image is then flattened into a single sequence of:
 
-$$
+```math
 128 \times 128 \times 3 = 49,152
-$$
+```
 
 pixel values.
 
@@ -614,9 +614,9 @@ image_name.png,<49,152 space-separated pixel values>
 
 Because the evaluation metric is MAE:
 
-$$
+```math
 \boxed{\text{Lower is better}}
-$$
+```
 
 The difference between public and private performance also illustrates why local reconstruction error alone is not sufficient for judging generalization.
 
@@ -646,17 +646,17 @@ A generator given too much adversarial or perceptual pressure can instead produc
 
 For this reason, the final training strategy deliberately kept:
 
-$$
+```math
 L_{\text{pixel}}
 \gg
 L_{\text{adversarial}}
-$$
+```
 
 through the very small adversarial coefficient:
 
-$$
+```math
 \lambda_{adv}=0.001
-$$
+```
 
 and delayed adversarial training until after the reconstruction stage.
 
@@ -672,10 +672,10 @@ Bicubic interpolation can increase the image dimensions, but it cannot recover i
 
 The neural network instead learns a mapping:
 
-$$
+```math
 f_\theta:
 I_{LR}\rightarrow I_{HR}
-$$
+```
 
 from 1,642 paired training examples.
 
@@ -701,11 +701,11 @@ The discriminator is not automatically beneficial simply because it is present.
 
 The relative strength of:
 
-$$
+```math
 L_{\text{reconstruction}}
 \quad\text{and}\quad
 L_{\text{adversarial}}
-$$
+```
 
 strongly affects the behaviour of the generator.
 
@@ -854,14 +854,14 @@ VGG-19 Perceptual Loss (experiments)
 
 The best submitted result was:
 
-$$
+```math
 \boxed{\text{Private MAE}=16.7747859}
-$$
+```
 
 with a public leaderboard MAE of:
 
-$$
+```math
 \boxed{\text{Public MAE}=16.1249961}
-$$
+```
 
 The most important engineering lesson from the project was that successful GAN-based super-resolution requires balancing **faithful reconstruction** against **perceptual realism**. The adversarial component is useful only when it complements the reconstruction objective rather than overwhelming it.
